@@ -24,6 +24,8 @@ const CANONICAL_ROWS = [
   "Operating Income",
   "Net income",
   "Insiders",
+  "Long Term Investments",
+  "LTM dividend",
   "Total Pref Equity",
   "Total Minority Interest"
 ];
@@ -59,6 +61,8 @@ function normalizeLabel(raw) {
     "operating income": "Operating Income",
     "net income": "Net income",
     "insiders": "Insiders",
+    "long term investments": "Long Term Investments",
+    "ltm dividend": "LTM dividend",
     "total pref equity": "Total Pref Equity",
     "total minority interest": "Total Minority Interest"
   };
