@@ -40,7 +40,6 @@
       </div>
     </div>
 
-    <!-- Panel para editar nombre, sitio web y descripción de la empresa -->
     <div id="edit-meta-panel" class="edit-meta-panel">
       <strong>Datos informativos y enlaces de la empresa</strong>
       <div class="form-grid">
@@ -57,7 +56,6 @@
       </div>
     </div>
 
-    <!-- Panel de GitHub -->
     <div id="gh-panel" class="gh-panel">
       <strong>Guardado directo en GitHub (para usuarios editores)</strong>
       <div class="form-grid">
@@ -74,28 +72,23 @@
 
     <div id="status-banner" class="status-msg"></div>
 
-    <!-- MITAD SUPERIOR: 3 COLUMNAS -->
     <div class="top-three-cols">
-      <!-- Columna 1: Datos informativos, precio/moneda/fecha, descripción y enlaces -->
       <div class="card" style="margin-bottom:0;">
         <h2><span>Información General</span></h2>
         <div id="col1-info"></div>
       </div>
 
-      <!-- Columna 2: Métricas patrimoniales y de balance -->
       <div class="card" style="margin-bottom:0;">
         <h2><span>Valoración y Balance</span></h2>
         <div id="col2-metrics" class="metrics-col-grid"></div>
       </div>
 
-      <!-- Columna 3: Múltiplos de flujo/utilidad y calidad -->
       <div class="card" style="margin-bottom:0;">
         <h2><span>Múltiplos y Calidad</span></h2>
         <div id="col3-metrics" class="metrics-col-grid"></div>
       </div>
     </div>
 
-    <!-- MITAD INFERIOR: INFORMACIÓN FINANCIERA HISTÓRICA -->
     <div class="card">
       <h2>
         <span>Información Financiera Histórica</span>
@@ -170,6 +163,39 @@
       return true;
     }
 
+    async function fetchYahooQuoteInBrowser(ticker) {
+      const yahooEndpoints = [
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`,
+        `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`
+      ];
+
+      for (const targetUrl of yahooEndpoints) {
+        const proxies = [
+          `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+          `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
+        ];
+
+        for (const pUrl of proxies) {
+          try {
+            const res = await fetch(pUrl);
+            if (!res.ok) continue;
+            const json = await res.json();
+            const meta = json?.chart?.result?.[0]?.meta;
+            const price = meta?.regularMarketPrice ?? meta?.previousClose;
+            if (price && !isNaN(Number(price))) {
+              return {
+                price: Number(price),
+                currency: meta.currency || null
+              };
+            }
+          } catch (_) {
+            // Try next proxy
+          }
+        }
+      }
+      throw new Error("Sin respuesta de Yahoo Finance desde el navegador");
+    }
+
     async function init() {
       const cfg = getGhConfig();
       document.getElementById("gh-owner").value = cfg.owner;
@@ -225,12 +251,15 @@
       document.getElementById("company-title").textContent = `${c.ticker} — ${c.name || c.ticker}`;
       document.getElementById("company-subtitle").textContent = `Última carga: ${c.lastUpdated || "-"} | Periodos: ${(c.periods || []).join(", ")}`;
 
-      // Columna 1: Datos informativos + precio/moneda/fecha + descripción + enlaces
       const yahooUrl = `https://finance.yahoo.com/quote/${encodeURIComponent(c.ticker)}`;
       const linksHtml = [
         `<a href="${yahooUrl}" target="_blank" rel="noopener">Yahoo Finance ↗</a>`,
         c.website ? `<a href="${c.website}" target="_blank" rel="noopener">Sitio oficial ↗</a>` : ""
       ].filter(Boolean).join("");
+
+      const mcapSub = (priceVal !== null && m.shares > 0)
+        ? `${fmtNum(priceVal)} × ${fmtInt(m.shares)} shares`
+        : "Requiere precio y Shares outstanding";
 
       document.getElementById("col1-info").innerHTML = `
         <div class="info-list">
@@ -239,8 +268,10 @@
           <div class="info-row"><span class="info-label">Última carga</span><span class="info-val">${c.lastUpdated || "-"}</span></div>
           <div class="info-row"><span class="info-label">Precio</span><span class="info-val">${priceVal !== null ? fmtNum(priceVal) + " " + (c.currency || "") : "N/A"}</span></div>
           <div class="info-row"><span class="info-label">Fecha precio</span><span class="info-val">${c.priceDate || "-"}</span></div>
+          <div class="info-row"><span class="info-label">Shares out.</span><span class="info-val">${m.shares ? fmtInt(m.shares) : "0"}</span></div>
           <div class="info-row"><span class="info-label">Market Cap</span><span class="info-val">${m.marketCap !== null ? fmtNum(m.marketCap) + " mm" : "N/A"}</span></div>
         </div>
+        <div style="font-size:11px; color:var(--muted); margin-top:6px;">${mcapSub}</div>
         ${c.description ? `<div class="desc-box">${c.description}</div>` : `<div class="desc-box" style="color:var(--muted);">Sin descripción registrada. Usa "✎ Info / Enlaces" para agregarla.</div>`}
         <div class="links-box">${linksHtml}</div>
       `;
@@ -253,7 +284,6 @@
         </div>
       `;
 
-      // Columna 2: Métricas patrimoniales
       document.getElementById("col2-metrics").innerHTML = [
         box("NCAV", fmtNum(m.ncav), `P/NCAV: ${m.p_ncav !== null ? fmtNum(m.p_ncav) + "x" : "-"}`),
         box("TBV", fmtNum(m.tbv), `P/TBV: ${m.p_tbv !== null ? fmtNum(m.p_tbv) + "x" : "-"}`),
@@ -261,7 +291,6 @@
         box("Net Cash", fmtNum(m.netCash), `P/NetCash: ${m.p_netcash !== null ? fmtNum(m.p_netcash) + "x" : "-"}`)
       ].join("");
 
-      // Columna 3: Múltiplos y calidad
       document.getElementById("col3-metrics").innerHTML = [
         box("F-Score", m.fScore !== null ? `${m.fScore} / 9` : "N/A", `Insiders: ${m.insiders ? fmtNum(m.insiders * 100) + "%" : "0.00%"}`),
         box("P / E (TTM)", m.p_ettm !== null ? fmtNum(m.p_ettm) + "x" : "-", `P / FCF (TTM): ${m.p_fcfttm !== null ? fmtNum(m.p_fcfttm) + "x" : "-"}`),
@@ -269,13 +298,12 @@
         box("P / FCF (5A / 10A)", `${m.p_fcf5 !== null ? fmtNum(m.p_fcf5) + "x" : "-"} / ${m.p_fcf10 !== null ? fmtNum(m.p_fcf10) + "x" : "-"}`, "Promedios anuales")
       ].join("");
 
-      // Mitad inferior: Financieros históricos
       const thead = document.querySelector("#financials-table thead");
       const tbody = document.querySelector("#financials-table tbody");
       const periods = c.periods || [];
       thead.innerHTML = `<tr><th>Concepto (${c.ticker})</th>${periods.map(p => `<th>${p}</th>`).join("")}</tr>`;
 
-      const highlightRows = new Set(["Total assets", "Total liabilities", "Total equity", "Revenue", "Operating Income", "Net income", "Cash from operating activities"]);
+      const highlightRows = new Set(["Total assets", "Total liabilities", "Total equity", "Shares outstanding", "Revenue", "Operating Income", "Net income", "Cash from operating activities"]);
       const rowKeys = Object.keys(c.rows || {});
       tbody.innerHTML = rowKeys.map(rowName => {
         const vals = c.rows[rowName] || [];
@@ -298,7 +326,7 @@
       currentCompany.price = isNaN(v) ? null : v;
       currentCompany.priceDate = new Date().toISOString().slice(0, 10);
       renderAll();
-      if (await persistCompanyIfConfigured("(precio)")) showStatus("Precio guardado en GitHub.");
+      if (await persistCompanyIfConfigured("(precio)")) showStatus("Precio y Market Cap actualizados en GitHub.");
     });
 
     document.getElementById("currency-input").addEventListener("change", async e => {
@@ -312,22 +340,19 @@
       if (!currentCompany) return;
       showStatus(`Consultando ${currentCompany.ticker} en Yahoo Finance...`);
       try {
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(currentCompany.ticker)}?interval=1d&range=1d`;
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-        const res = await fetch(proxyUrl);
-        const wrapper = await res.json();
-        const chartData = JSON.parse(wrapper.contents);
-        const meta = chartData.chart.result[0].meta;
-        currentCompany.price = meta.regularMarketPrice;
-        if (meta.currency) currentCompany.currency = meta.currency;
+        const quote = await fetchYahooQuoteInBrowser(currentCompany.ticker);
+        currentCompany.price = quote.price;
+        if (quote.currency) currentCompany.currency = quote.currency;
         currentCompany.priceDate = new Date().toISOString().slice(0, 10);
         document.getElementById("price-input").value = currentCompany.price;
         document.getElementById("currency-input").value = currentCompany.currency || "";
         renderAll();
         const saved = await persistCompanyIfConfigured("(Yahoo Finance)");
-        showStatus(saved ? `Precio (${currentCompany.price} ${currentCompany.currency || ""}) guardado en GitHub.` : `Precio obtenido: ${currentCompany.price}.`);
+        showStatus(saved
+          ? `Precio (${currentCompany.price} ${currentCompany.currency || ""}) guardado en GitHub.`
+          : `Precio obtenido: ${currentCompany.price} ${currentCompany.currency || ""}.`);
       } catch (err) {
-        showStatus("No se pudo consultar Yahoo Finance automáticamente. Puedes ingresar el precio manual.", true);
+        showStatus("Yahoo Finance bloqueó la consulta desde el navegador. Puedes escribir el precio manual o usar la GitHub Action 'Update Prices'.", true);
       }
     });
 
