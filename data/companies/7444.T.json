@@ -1,10 +1,10 @@
 {
   "ticker": "7444.T",
   "name": "7444.T",
-  "currency": "USD",
+  "currency": "JPY",
   "unitMultiplier": 1000000,
-  "price": null,
-  "priceDate": null,
+  "price": 1815,
+  "priceDate": "2026-11-26",
   "website": "",
   "description": "",
   "lastUpdated": "2026-11-26",
