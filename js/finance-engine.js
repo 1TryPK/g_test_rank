@@ -13,7 +13,7 @@ const CANONICAL_ROWS = [
   "Retained earnings",
   "Total equity",
   "Total debt",
-  "Total shares outstanding",
+  "Shares outstanding",
   "Issuance of stock",
   "Retirement of stock",
   "Total cash dividend paid",
@@ -46,8 +46,9 @@ function normalizeLabel(raw) {
     "retained earnings": "Retained earnings",
     "total equity": "Total equity",
     "total debt": "Total debt",
-    "total shares outstanding": "Total shares outstanding",
-    "total common shares": "Total shares outstanding",
+    "shares outstanding": "Shares outstanding",
+    "total shares outstanding": "Shares outstanding",
+    "total common shares": "Shares outstanding",
     "issuance of stock": "Issuance of stock",
     "retirement of stock": "Retirement of stock",
     "total cash dividend paid": "Total cash dividend paid",
@@ -186,6 +187,14 @@ function mergeCompanyData(existingCompany, incoming) {
   return base;
 }
 
+function getSharesValue(rows, colIdx = 0) {
+  if (!rows) return 0;
+  const candidateRow = rows["Shares outstanding"] || rows["Total shares outstanding"] || rows["Total common shares"];
+  if (!candidateRow || colIdx >= candidateRow.length) return 0;
+  const v = Number(candidateRow[colIdx]);
+  return isNaN(v) ? 0 : v;
+}
+
 function calculateMetrics(company, sharePrice) {
   const r = company.rows || {};
   const periods = company.periods || [];
@@ -205,7 +214,9 @@ function calculateMetrics(company, sharePrice) {
   const totLiab = getVal("Total liabilities", 0);
   const prefEq = getVal("Total Pref Equity", 0);
   const minInt = Math.max(0, getVal("Total Minority Interest", 0));
-  const shares = getVal("Total shares outstanding", 0);
+
+  // Shares outstanding de la columna más reciente (col 0)
+  const shares = getSharesValue(r, 0);
   const insiders = getVal("Insiders", 0);
 
   const tbv = assetsNoInt - totLiab - prefEq - minInt;
@@ -213,8 +224,11 @@ function calculateMetrics(company, sharePrice) {
   const nnwc = (cash + 0.75 * receivables + 0.5 * inventory) - totLiab - prefEq - minInt;
   const netCash = cash - totLiab - prefEq - minInt;
 
+  // Market Cap en millones (si shares viene en acciones exactas y mult = 1,000,000)
   const mult = company.unitMultiplier || 1000000;
-  const marketCap = (sharePrice && shares) ? (sharePrice * shares) / mult : null;
+  const marketCap = (sharePrice !== null && sharePrice !== undefined && !isNaN(sharePrice) && shares > 0)
+    ? (Number(sharePrice) * shares) / mult
+    : null;
 
   const safeDiv = (num, den) => (num !== null && den && den !== 0) ? (num / den) : null;
 
@@ -270,8 +284,8 @@ function calculateMetrics(company, sharePrice) {
     const crC = getVal("Current Liabilities", c) ? getVal("Current assets", c) / getVal("Current Liabilities", c) : 0;
     const crP = getVal("Current Liabilities", p) ? getVal("Current assets", p) / getVal("Current Liabilities", p) : 0;
 
-    const sharesC = getVal("Total shares outstanding", c);
-    const sharesP = getVal("Total shares outstanding", p);
+    const sharesC = getSharesValue(r, c);
+    const sharesP = getSharesValue(r, p);
 
     const gmC = getVal("Revenue", c) ? getVal("Gross Profit", c) / getVal("Revenue", c) : 0;
     const gmP = getVal("Revenue", p) ? getVal("Gross Profit", p) / getVal("Revenue", p) : 0;
@@ -295,6 +309,7 @@ function calculateMetrics(company, sharePrice) {
 
   return {
     sharePrice,
+    shares,
     marketCap,
     insiders,
     fScore,
