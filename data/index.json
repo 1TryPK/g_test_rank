@@ -11,6 +11,12 @@
       "name": "7444.T",
       "file": "data/companies/7444.T.json",
       "lastUpdated": "2026-11-26"
+    },
+    {
+      "ticker": "7297.T",
+      "name": "7297.T",
+      "file": "data/companies/7297.T.json",
+      "lastUpdated": "2026-11-26"
     }
   ]
 }
