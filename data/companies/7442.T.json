@@ -1,0 +1,165 @@
+{
+  "ticker": "7442.T",
+  "name": "Nakayamafuku Co., Ltd. (Demo)",
+  "currency": "JPY",
+  "unitMultiplier": 1000000,
+  "lastUpdated": "2025-12-31",
+  "periods": [
+    "LTM",
+    "FY2025",
+    "FY2024",
+    "FY2023"
+  ],
+  "rows": {
+    "Date": [
+      "31/dic/2025",
+      "31/mar/2025",
+      "31/mar/2024",
+      "31/mar/2023"
+    ],
+    "Cash & ST Investments": [
+      19607,
+      20115,
+      20783,
+      20467
+    ],
+    "Current assets": [
+      9469,
+      9530,
+      8619,
+      9071
+    ],
+    "Receivables": [
+      6202,
+      5014,
+      4765,
+      4814
+    ],
+    "Inventory": [
+      40,
+      40,
+      88,
+      150
+    ],
+    "Intangibles": [
+      32110,
+      33010,
+      32708,
+      32739
+    ],
+    "Total assets (Without Intangibles)": [
+      32150,
+      33050,
+      32796,
+      32889
+    ],
+    "Total assets": [
+      7418,
+      7646,
+      8800,
+      8456
+    ],
+    "Current Liabilities": [
+      270,
+      334,
+      591,
+      939
+    ],
+    "Long-Term Debt": [
+      8928,
+      9370,
+      10394,
+      10465
+    ],
+    "Total liabilities": [
+      18108,
+      18067,
+      17652,
+      17320
+    ],
+    "Retained earnings": [
+      23222,
+      23680,
+      22402,
+      22424
+    ],
+    "Total equity": [
+      2327,
+      2391,
+      4435,
+      3343
+    ],
+    "Total debt": [
+      18918547,
+      18919831,
+      19342264,
+      19329980
+    ],
+    "Total shares outstanding": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "Issuance of stock": [
+      0,
+      -35,
+      0,
+      0
+    ],
+    "Retirement of stock": [
+      0,
+      -233,
+      -194,
+      -194
+    ],
+    "Total cash dividend paid": [
+      0,
+      353,
+      -6,
+      1349
+    ],
+    "Cash from operating activities": [
+      0,
+      -74,
+      -595,
+      -375
+    ],
+    "Capital expenditures": [
+      44491,
+      43052,
+      40949,
+      38593
+    ],
+    "Revenue": [
+      8735,
+      8395,
+      7819,
+      7176
+    ],
+    "Gross Profit": [
+      786,
+      531,
+      155,
+      -470
+    ],
+    "Operating Income": [
+      677,
+      667,
+      526,
+      14
+    ],
+    "Net income": [
+      279,
+      245,
+      -172,
+      54
+    ],
+    "Insiders": [
+      0.4042,
+      0.4042,
+      0.4042,
+      0.4042
+    ]
+  }
+}

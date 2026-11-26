@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ficha de Empresa - Análisis Fundamental</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1 id="company-title">Cargando empresa...</h1>
+      <span id="company-subtitle" style="font-size:12px; color:#cbd5e1;"></span>
+    </div>
+    <div>
+      <a href="index.html">← Volver al listado</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="toolbar">
+      <div class="toolbar-group">
+        <label for="company-select"><strong>Empresa:</strong></label>
+        <select id="company-select"></select>
+        <button class="outline" id="btn-edit-meta">✎ Info / Enlaces</button>
+      </div>
+
+      <div class="toolbar-group">
+        <label for="price-input"><strong>Precio:</strong></label>
+        <input type="number" id="price-input" step="any" placeholder="Precio" style="width:100px;" />
+        <input type="text" id="currency-input" placeholder="Moneda" style="width:70px;" />
+        <button class="outline" id="btn-fetch-price" title="Consultar en Yahoo Finance">↻ Yahoo</button>
+      </div>
+
+      <div class="toolbar-group">
+        <input type="file" id="csv-upload" accept=".csv,.txt" style="display:none;" />
+        <button id="btn-trigger-upload">↑ Cargar / Actualizar CSV</button>
+        <button class="secondary" id="btn-download-json">↓ JSON</button>
+        <button class="outline" id="btn-toggle-gh">⚙ GitHub</button>
+      </div>
+    </div>
+
+    <!-- Panel para editar nombre, sitio web y descripción de la empresa -->
+    <div id="edit-meta-panel" class="edit-meta-panel">
+      <strong>Datos informativos y enlaces de la empresa</strong>
+      <div class="form-grid">
+        <input type="text" id="meta-name" placeholder="Nombre de la empresa" />
+        <input type="text" id="meta-website" placeholder="Sitio web oficial (https://...)" />
+        <input type="text" id="meta-currency" placeholder="Moneda (ej. JPY, USD, MXN)" />
+      </div>
+      <div style="margin-top:8px;">
+        <textarea id="meta-desc" rows="2" style="width:100%;" placeholder="Resumen o descripción breve de la empresa..."></textarea>
+      </div>
+      <div style="margin-top:8px; display:flex; gap:8px;">
+        <button id="btn-save-meta">Aplicar cambios</button>
+        <button class="outline" id="btn-close-meta">Cerrar</button>
+      </div>
+    </div>
+
+    <!-- Panel de GitHub -->
+    <div id="gh-panel" class="gh-panel">
+      <strong>Guardado directo en GitHub (para usuarios editores)</strong>
+      <div class="form-grid">
+        <input type="text" id="gh-owner" placeholder="Owner (usuario/org)" />
+        <input type="text" id="gh-repo" placeholder="Repositorio" />
+        <input type="text" id="gh-branch" placeholder="Rama (main)" />
+        <input type="password" id="gh-token" placeholder="GitHub Token" />
+      </div>
+      <div style="margin-top:10px; display:flex; gap:8px;">
+        <button id="btn-save-gh-cfg">Guardar config</button>
+        <button class="outline" id="btn-clear-gh-cfg">Borrar token</button>
+      </div>
+    </div>
+
+    <div id="status-banner" class="status-msg"></div>
+
+    <!-- MITAD SUPERIOR: 3 COLUMNAS -->
+    <div class="top-three-cols">
+      <!-- Columna 1: Datos informativos, precio/moneda/fecha, descripción y enlaces -->
+      <div class="card" style="margin-bottom:0;">
+        <h2><span>Información General</span></h2>
+        <div id="col1-info"></div>
+      </div>
+
+      <!-- Columna 2: Métricas patrimoniales y de balance -->
+      <div class="card" style="margin-bottom:0;">
+        <h2><span>Valoración y Balance</span></h2>
+        <div id="col2-metrics" class="metrics-col-grid"></div>
+      </div>
+
+      <!-- Columna 3: Múltiplos de flujo/utilidad y calidad -->
+      <div class="card" style="margin-bottom:0;">
+        <h2><span>Múltiplos y Calidad</span></h2>
+        <div id="col3-metrics" class="metrics-col-grid"></div>
+      </div>
+    </div>
+
+    <!-- MITAD INFERIOR: INFORMACIÓN FINANCIERA HISTÓRICA -->
+    <div class="card">
+      <h2>
+        <span>Información Financiera Histórica</span>
+        <span style="font-size:12px; font-weight:400; color:var(--muted);">LTM y ejercicios fiscales (más reciente a la izquierda)</span>
+      </h2>
+      <div class="table-wrapper">
+        <table id="financials-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/finance-engine.js"></script>
+  <script>
+    let registry = [];
+    let currentCompany = null;
+
+    const fmtNum = (n, decimals = 2) => {
+      if (n === null || n === undefined || isNaN(n)) return "N/A";
+      return Number(n).toLocaleString("en-US", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
+    };
+
+    const fmtInt = (n) => {
+      if (n === null || n === undefined || isNaN(n)) return "-";
+      return Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
+    };
+
+    function showStatus(msg, isError = false) {
+      const el = document.getElementById("status-banner");
+      el.style.display = "block";
+      el.style.background = isError ? "#fef2f2" : "#f0fdf4";
+      el.style.color = isError ? "#991b1b" : "#166534";
+      el.style.borderColor = isError ? "#fecaca" : "#bbf7d0";
+      el.textContent = msg;
+    }
+
+    function getGhConfig() {
+      return {
+        owner: localStorage.getItem("gh_owner") || "",
+        repo: localStorage.getItem("gh_repo") || "",
+        branch: localStorage.getItem("gh_branch") || "main",
+        token: localStorage.getItem("gh_token") || ""
+      };
+    }
+
+    async function persistCompanyIfConfigured(msgSuffix = "") {
+      const gh = getGhConfig();
+      if (!gh.owner || !gh.repo || !gh.token) return false;
+      await saveFileToGitHub({
+        owner: gh.owner,
+        repo: gh.repo,
+        branch: gh.branch,
+        token: gh.token,
+        path: `data/companies/${currentCompany.ticker}.json`,
+        contentText: JSON.stringify(currentCompany, null, 2),
+        message: `Update ${currentCompany.ticker} ${msgSuffix}`.trim()
+      });
+      await saveFileToGitHub({
+        owner: gh.owner,
+        repo: gh.repo,
+        branch: gh.branch,
+        token: gh.token,
+        path: "data/index.json",
+        contentText: JSON.stringify({ companies: registry }, null, 2),
+        message: `Update index.json for ${currentCompany.ticker}`
+      });
+      return true;
+    }
+
+    async function init() {
+      const cfg = getGhConfig();
+      document.getElementById("gh-owner").value = cfg.owner;
+      document.getElementById("gh-repo").value = cfg.repo;
+      document.getElementById("gh-branch").value = cfg.branch;
+      document.getElementById("gh-token").value = cfg.token;
+
+      try {
+        const res = await fetch("data/index.json?t=" + Date.now());
+        const data = await res.json();
+        registry = data.companies || [];
+      } catch (e) {
+        registry = [];
+      }
+
+      populateSelector();
+      const params = new URLSearchParams(window.location.search);
+      const requested = params.get("ticker") || (registry[0] && registry[0].ticker);
+      if (requested) {
+        document.getElementById("company-select").value = requested;
+        await loadCompany(requested);
+      }
+    }
+
+    function populateSelector() {
+      const sel = document.getElementById("company-select");
+      sel.innerHTML = "";
+      registry.forEach(item => {
+        const opt = document.createElement("option");
+        opt.value = item.ticker;
+        opt.textContent = `${item.ticker} — ${item.name || item.ticker}`;
+        sel.appendChild(opt);
+      });
+    }
+
+    async function loadCompany(ticker) {
+      const entry = registry.find(r => r.ticker === ticker);
+      const path = (entry && entry.file) ? entry.file : `data/companies/${ticker}.json`;
+      const res = await fetch(`${path}?t=${Date.now()}`);
+      currentCompany = await res.json();
+
+      document.getElementById("price-input").value = currentCompany.price ?? "";
+      document.getElementById("currency-input").value = currentCompany.currency || "";
+      renderAll();
+    }
+
+    function renderAll() {
+      if (!currentCompany) return;
+      const c = currentCompany;
+      const priceVal = (c.price !== null && c.price !== undefined && c.price !== "") ? Number(c.price) : null;
+      const m = calculateMetrics(c, priceVal);
+
+      document.getElementById("company-title").textContent = `${c.ticker} — ${c.name || c.ticker}`;
+      document.getElementById("company-subtitle").textContent = `Última carga: ${c.lastUpdated || "-"} | Periodos: ${(c.periods || []).join(", ")}`;
+
+      // Columna 1: Datos informativos + precio/moneda/fecha + descripción + enlaces
+      const yahooUrl = `https://finance.yahoo.com/quote/${encodeURIComponent(c.ticker)}`;
+      const linksHtml = [
+        `<a href="${yahooUrl}" target="_blank" rel="noopener">Yahoo Finance ↗</a>`,
+        c.website ? `<a href="${c.website}" target="_blank" rel="noopener">Sitio oficial ↗</a>` : ""
+      ].filter(Boolean).join("");
+
+      document.getElementById("col1-info").innerHTML = `
+        <div class="info-list">
+          <div class="info-row"><span class="info-label">Ticker</span><span class="info-val">${c.ticker}</span></div>
+          <div class="info-row"><span class="info-label">Empresa</span><span class="info-val">${c.name || c.ticker}</span></div>
+          <div class="info-row"><span class="info-label">Última carga</span><span class="info-val">${c.lastUpdated || "-"}</span></div>
+          <div class="info-row"><span class="info-label">Precio</span><span class="info-val">${priceVal !== null ? fmtNum(priceVal) + " " + (c.currency || "") : "N/A"}</span></div>
+          <div class="info-row"><span class="info-label">Fecha precio</span><span class="info-val">${c.priceDate || "-"}</span></div>
+          <div class="info-row"><span class="info-label">Market Cap</span><span class="info-val">${m.marketCap !== null ? fmtNum(m.marketCap) + " mm" : "N/A"}</span></div>
+        </div>
+        ${c.description ? `<div class="desc-box">${c.description}</div>` : `<div class="desc-box" style="color:var(--muted);">Sin descripción registrada. Usa "✎ Info / Enlaces" para agregarla.</div>`}
+        <div class="links-box">${linksHtml}</div>
+      `;
+
+      const box = (label, val, sub = "") => `
+        <div class="metric-box">
+          <div class="metric-label">${label}</div>
+          <div class="metric-value">${val}</div>
+          ${sub ? `<div class="metric-sub">${sub}</div>` : ""}
+        </div>
+      `;
+
+      // Columna 2: Métricas patrimoniales
+      document.getElementById("col2-metrics").innerHTML = [
+        box("NCAV", fmtNum(m.ncav), `P/NCAV: ${m.p_ncav !== null ? fmtNum(m.p_ncav) + "x" : "-"}`),
+        box("TBV", fmtNum(m.tbv), `P/TBV: ${m.p_tbv !== null ? fmtNum(m.p_tbv) + "x" : "-"}`),
+        box("NNWC", fmtNum(m.nnwc), `P/NNWC: ${m.p_nnwc !== null ? fmtNum(m.p_nnwc) + "x" : "-"}`),
+        box("Net Cash", fmtNum(m.netCash), `P/NetCash: ${m.p_netcash !== null ? fmtNum(m.p_netcash) + "x" : "-"}`)
+      ].join("");
+
+      // Columna 3: Múltiplos y calidad
+      document.getElementById("col3-metrics").innerHTML = [
+        box("F-Score", m.fScore !== null ? `${m.fScore} / 9` : "N/A", `Insiders: ${m.insiders ? fmtNum(m.insiders * 100) + "%" : "0.00%"}`),
+        box("P / E (TTM)", m.p_ettm !== null ? fmtNum(m.p_ettm) + "x" : "-", `P / FCF (TTM): ${m.p_fcfttm !== null ? fmtNum(m.p_fcfttm) + "x" : "-"}`),
+        box("P / E (5A / 10A)", `${m.p_e5 !== null ? fmtNum(m.p_e5) + "x" : "-"} / ${m.p_e10 !== null ? fmtNum(m.p_e10) + "x" : "-"}`, "Promedios anuales"),
+        box("P / FCF (5A / 10A)", `${m.p_fcf5 !== null ? fmtNum(m.p_fcf5) + "x" : "-"} / ${m.p_fcf10 !== null ? fmtNum(m.p_fcf10) + "x" : "-"}`, "Promedios anuales")
+      ].join("");
+
+      // Mitad inferior: Financieros históricos
+      const thead = document.querySelector("#financials-table thead");
+      const tbody = document.querySelector("#financials-table tbody");
+      const periods = c.periods || [];
+      thead.innerHTML = `<tr><th>Concepto (${c.ticker})</th>${periods.map(p => `<th>${p}</th>`).join("")}</tr>`;
+
+      const highlightRows = new Set(["Total assets", "Total liabilities", "Total equity", "Revenue", "Operating Income", "Net income", "Cash from operating activities"]);
+      const rowKeys = Object.keys(c.rows || {});
+      tbody.innerHTML = rowKeys.map(rowName => {
+        const vals = c.rows[rowName] || [];
+        const isHl = highlightRows.has(rowName);
+        const cells = vals.map(v => {
+          if (rowName === "Date") return `<td>${v}</td>`;
+          if (rowName === "Insiders") return `<td>${(Number(v) * 100).toFixed(2)}%</td>`;
+          const num = Number(v);
+          return `<td class="${num < 0 ? "neg" : ""}">${fmtInt(num)}</td>`;
+        }).join("");
+        return `<tr class="${isHl ? "row-highlight" : ""}"><td>${rowName}</td>${cells}</tr>`;
+      }).join("");
+    }
+
+    document.getElementById("company-select").addEventListener("change", e => loadCompany(e.target.value));
+
+    document.getElementById("price-input").addEventListener("change", async e => {
+      if (!currentCompany) return;
+      const v = parseFloat(e.target.value);
+      currentCompany.price = isNaN(v) ? null : v;
+      currentCompany.priceDate = new Date().toISOString().slice(0, 10);
+      renderAll();
+      if (await persistCompanyIfConfigured("(precio)")) showStatus("Precio guardado en GitHub.");
+    });
+
+    document.getElementById("currency-input").addEventListener("change", async e => {
+      if (!currentCompany) return;
+      currentCompany.currency = e.target.value.trim().toUpperCase();
+      renderAll();
+      if (await persistCompanyIfConfigured("(moneda)")) showStatus("Moneda guardada en GitHub.");
+    });
+
+    document.getElementById("btn-fetch-price").addEventListener("click", async () => {
+      if (!currentCompany) return;
+      showStatus(`Consultando ${currentCompany.ticker} en Yahoo Finance...`);
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(currentCompany.ticker)}?interval=1d&range=1d`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        const res = await fetch(proxyUrl);
+        const wrapper = await res.json();
+        const chartData = JSON.parse(wrapper.contents);
+        const meta = chartData.chart.result[0].meta;
+        currentCompany.price = meta.regularMarketPrice;
+        if (meta.currency) currentCompany.currency = meta.currency;
+        currentCompany.priceDate = new Date().toISOString().slice(0, 10);
+        document.getElementById("price-input").value = currentCompany.price;
+        document.getElementById("currency-input").value = currentCompany.currency || "";
+        renderAll();
+        const saved = await persistCompanyIfConfigured("(Yahoo Finance)");
+        showStatus(saved ? `Precio (${currentCompany.price} ${currentCompany.currency || ""}) guardado en GitHub.` : `Precio obtenido: ${currentCompany.price}.`);
+      } catch (err) {
+        showStatus("No se pudo consultar Yahoo Finance automáticamente. Puedes ingresar el precio manual.", true);
+      }
+    });
+
+    document.getElementById("btn-edit-meta").addEventListener("click", () => {
+      if (!currentCompany) return;
+      document.getElementById("meta-name").value = currentCompany.name || "";
+      document.getElementById("meta-website").value = currentCompany.website || "";
+      document.getElementById("meta-currency").value = currentCompany.currency || "";
+      document.getElementById("meta-desc").value = currentCompany.description || "";
+      document.getElementById("edit-meta-panel").style.display = "block";
+    });
+
+    document.getElementById("btn-close-meta").addEventListener("click", () => {
+      document.getElementById("edit-meta-panel").style.display = "none";
+    });
+
+    document.getElementById("btn-save-meta").addEventListener("click", async () => {
+      if (!currentCompany) return;
+      currentCompany.name = document.getElementById("meta-name").value.trim() || currentCompany.ticker;
+      currentCompany.website = document.getElementById("meta-website").value.trim();
+      currentCompany.currency = document.getElementById("meta-currency").value.trim().toUpperCase();
+      currentCompany.description = document.getElementById("meta-desc").value.trim();
+
+      const idx = registry.findIndex(r => r.ticker === currentCompany.ticker);
+      if (idx >= 0) registry[idx].name = currentCompany.name;
+      populateSelector();
+      document.getElementById("company-select").value = currentCompany.ticker;
+      document.getElementById("edit-meta-panel").style.display = "none";
+      renderAll();
+
+      const saved = await persistCompanyIfConfigured("(info empresa)");
+      showStatus(saved ? "Información y enlaces guardados en GitHub." : "Información actualizada en pantalla.");
+    });
+
+    document.getElementById("btn-trigger-upload").addEventListener("click", () => document.getElementById("csv-upload").click());
+
+    document.getElementById("csv-upload").addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async evt => {
+        try {
+          const incoming = parseCompanyCSV(evt.target.result);
+          let baseObj = null;
+          const entry = registry.find(r => r.ticker === incoming.ticker);
+          if (entry && entry.file) {
+            const r = await fetch(`${entry.file}?t=${Date.now()}`);
+            if (r.ok) baseObj = await r.json();
+          }
+          currentCompany = mergeCompanyData(baseObj, incoming);
+
+          const idx = registry.findIndex(r => r.ticker === currentCompany.ticker);
+          const regObj = {
+            ticker: currentCompany.ticker,
+            name: currentCompany.name || currentCompany.ticker,
+            file: `data/companies/${currentCompany.ticker}.json`,
+            lastUpdated: currentCompany.lastUpdated
+          };
+          if (idx >= 0) registry[idx] = regObj;
+          else registry.push(regObj);
+          populateSelector();
+          document.getElementById("company-select").value = currentCompany.ticker;
+          renderAll();
+
+          const saved = await persistCompanyIfConfigured("(CSV)");
+          showStatus(saved
+            ? `CSV fusionado y guardado en GitHub para ${currentCompany.ticker}.`
+            : `CSV fusionado para ${currentCompany.ticker}. Configura GitHub en ⚙ GitHub para guardarlo en el repo.`);
+        } catch (err) {
+          showStatus("Error al procesar CSV: " + err.message, true);
+        }
+        e.target.value = "";
+      };
+      reader.readAsText(file);
+    });
+
+    document.getElementById("btn-download-json").addEventListener("click", () => {
+      if (!currentCompany) return;
+      const blob = new Blob([JSON.stringify(currentCompany, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${currentCompany.ticker}.json`;
+      a.click();
+    });
+
+    document.getElementById("btn-toggle-gh").addEventListener("click", () => {
+      const p = document.getElementById("gh-panel");
+      p.style.display = p.style.display === "block" ? "none" : "block";
+    });
+
+    document.getElementById("btn-save-gh-cfg").addEventListener("click", () => {
+      localStorage.setItem("gh_owner", document.getElementById("gh-owner").value.trim());
+      localStorage.setItem("gh_repo", document.getElementById("gh-repo").value.trim());
+      localStorage.setItem("gh_branch", document.getElementById("gh-branch").value.trim() || "main");
+      localStorage.setItem("gh_token", document.getElementById("gh-token").value.trim());
+      showStatus("Configuración de GitHub guardada en este navegador.");
+    });
+
+    document.getElementById("btn-clear-gh-cfg").addEventListener("click", () => {
+      localStorage.removeItem("gh_token");
+      document.getElementById("gh-token").value = "";
+      showStatus("Token borrado.");
+    });
+
+    init();
+  </script>
+</body>
+</html>

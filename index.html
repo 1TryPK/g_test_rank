@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Resumen de Empresas - Fundamental Screener</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Resumen de Empresas</h1>
+      <span style="font-size:12px; color:#cbd5e1;">Listado de empresas cargadas en el repositorio</span>
+    </div>
+    <div>
+      <button id="btn-top-upload">↑ Cargar / Actualizar datos</button>
+      <input type="file" id="home-csv-upload" accept=".csv,.txt" style="display:none;" />
+    </div>
+  </header>
+
+  <div class="container">
+    <div id="home-status" class="status-msg"></div>
+
+    <!-- Panel opcional de GitHub para guardar al subir CSV desde la página principal -->
+    <div id="home-gh-panel" class="gh-panel">
+      <strong>Configuración de guardado en GitHub (solo editores)</strong>
+      <div class="form-grid">
+        <input type="text" id="h-gh-owner" placeholder="Owner (usuario/org)" />
+        <input type="text" id="h-gh-repo" placeholder="Repositorio" />
+        <input type="text" id="h-gh-branch" placeholder="Rama (main)" />
+        <input type="password" id="h-gh-token" placeholder="GitHub Token" />
+      </div>
+      <div style="margin-top:10px; display:flex; gap:8px;">
+        <button id="h-btn-save-gh">Guardar config</button>
+        <button class="outline" id="h-btn-toggle-gh">Ocultar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>
+        <span>Empresas cargadas</span>
+        <button class="outline" id="h-btn-open-gh" style="padding:5px 10px; font-size:12px;">⚙ GitHub</button>
+      </h2>
+      <div class="table-wrapper">
+        <table id="companies-list-table">
+          <thead>
+            <tr>
+              <th style="text-align:left;">Ticker / Empresa</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Cargando empresas...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/finance-engine.js"></script>
+  <script>
+    let registry = [];
+
+    function showHomeStatus(msg, isError = false) {
+      const el = document.getElementById("home-status");
+      el.style.display = "block";
+      el.style.background = isError ? "#fef2f2" : "#f0fdf4";
+      el.style.color = isError ? "#991b1b" : "#166534";
+      el.style.borderColor = isError ? "#fecaca" : "#bbf7d0";
+      el.textContent = msg;
+    }
+
+    function getGhCfg() {
+      return {
+        owner: localStorage.getItem("gh_owner") || "",
+        repo: localStorage.getItem("gh_repo") || "",
+        branch: localStorage.getItem("gh_branch") || "main",
+        token: localStorage.getItem("gh_token") || ""
+      };
+    }
+
+    async function loadRegistry() {
+      try {
+        const res = await fetch("data/index.json?t=" + Date.now());
+        const data = await res.json();
+        registry = data.companies || [];
+      } catch (e) {
+        registry = [];
+      }
+      renderList();
+    }
+
+    function renderList() {
+      const tbody = document.querySelector("#companies-list-table tbody");
+      if (!registry.length) {
+        tbody.innerHTML = `<tr><td style="text-align:left;">No hay empresas cargadas aún. Usa "Cargar / Actualizar datos".</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = registry.map(item => {
+        const label = item.name && item.name !== item.ticker ? `${item.ticker} — ${item.name}` : item.ticker;
+        return `<tr><td style="text-align:left;"><a href="empresa.html?ticker=${encodeURIComponent(item.ticker)}" style="color:var(--accent); font-weight:600; text-decoration:none;">${label}</a></td></tr>`;
+      }).join("");
+    }
+
+    document.getElementById("btn-top-upload").addEventListener("click", () => {
+      document.getElementById("home-csv-upload").click();
+    });
+
+    document.getElementById("home-csv-upload").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const incoming = parseCompanyCSV(evt.target.result);
+          let existingCompany = null;
+          const existingEntry = registry.find(r => r.ticker === incoming.ticker);
+          if (existingEntry && existingEntry.file) {
+            const r = await fetch(`${existingEntry.file}?t=${Date.now()}`);
+            if (r.ok) existingCompany = await r.json();
+          }
+
+          const merged = mergeCompanyData(existingCompany, incoming);
+          const idx = registry.findIndex(r => r.ticker === merged.ticker);
+          const entryObj = {
+            ticker: merged.ticker,
+            name: merged.name || merged.ticker,
+            file: `data/companies/${merged.ticker}.json`,
+            lastUpdated: merged.lastUpdated
+          };
+          if (idx >= 0) registry[idx] = entryObj;
+          else registry.push(entryObj);
+          renderList();
+
+          const gh = getGhCfg();
+          if (gh.owner && gh.repo && gh.token) {
+            showHomeStatus(`Guardando ${merged.ticker} en GitHub...`);
+            await saveFileToGitHub({
+              owner: gh.owner,
+              repo: gh.repo,
+              branch: gh.branch,
+              token: gh.token,
+              path: `data/companies/${merged.ticker}.json`,
+              contentText: JSON.stringify(merged, null, 2),
+              message: `Update financials for ${merged.ticker} (${merged.lastUpdated})`
+            });
+            await saveFileToGitHub({
+              owner: gh.owner,
+              repo: gh.repo,
+              branch: gh.branch,
+              token: gh.token,
+              path: "data/index.json",
+              contentText: JSON.stringify({ companies: registry }, null, 2),
+              message: `Update index.json for ${merged.ticker}`
+            });
+            showHomeStatus(`Listo: ${merged.ticker} actualizado en GitHub.`);
+          } else {
+            showHomeStatus(`CSV procesado para ${merged.ticker}. Configura GitHub en ⚙ GitHub para guardar en el repositorio.`);
+          }
+        } catch (err) {
+          showHomeStatus("Error al procesar CSV: " + err.message, true);
+        }
+        e.target.value = "";
+      };
+      reader.readAsText(file);
+    });
+
+    document.getElementById("h-btn-open-gh").addEventListener("click", () => {
+      const cfg = getGhCfg();
+      document.getElementById("h-gh-owner").value = cfg.owner;
+      document.getElementById("h-gh-repo").value = cfg.repo;
+      document.getElementById("h-gh-branch").value = cfg.branch;
+      document.getElementById("h-gh-token").value = cfg.token;
+      document.getElementById("home-gh-panel").style.display = "block";
+    });
+
+    document.getElementById("h-btn-toggle-gh").addEventListener("click", () => {
+      document.getElementById("home-gh-panel").style.display = "none";
+    });
+
+    document.getElementById("h-btn-save-gh").addEventListener("click", () => {
+      localStorage.setItem("gh_owner", document.getElementById("h-gh-owner").value.trim());
+      localStorage.setItem("gh_repo", document.getElementById("h-gh-repo").value.trim());
+      localStorage.setItem("gh_branch", document.getElementById("h-gh-branch").value.trim() || "main");
+      localStorage.setItem("gh_token", document.getElementById("h-gh-token").value.trim());
+      showHomeStatus("Configuración de GitHub guardada.");
+    });
+
+    loadRegistry();
+  </script>
+</body>
+</html>

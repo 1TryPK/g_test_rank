@@ -1,0 +1,10 @@
+{
+  "companies": [
+    {
+      "ticker": "7442.T",
+      "name": "Nakayamafuku Co., Ltd. (Demo)",
+      "file": "data/companies/7442.T.json",
+      "lastUpdated": "2025-12-31"
+    }
+  ]
+}
