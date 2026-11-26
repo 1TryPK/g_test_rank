@@ -259,8 +259,8 @@
 
       document.getElementById("col3-metrics").innerHTML = [
         box(
-          "F-Score FY / LTM",
-          `${m.fScore !== null ? m.fScore + "/9" : "N/A"} / ${m.fScoreLtm !== null ? m.fScoreLtm + "/9" : "N/A"}`,
+          "F-Score LTM / FY",
+          `${m.fScoreLtm !== null ? m.fScoreLtm + "/9" : "N/A"} || ${m.fScore !== null ? m.fScore + "/9" : "N/A"}`,
           `Insiders: ${m.insiders ? fmtNum(m.insiders * 100) + "%" : "0.00%"}`
         ),
         box("P / E (TTM)", m.p_ettm !== null ? fmtNum(m.p_ettm) + "x" : "-", `P / FCF (TTM): ${m.p_fcfttm !== null ? fmtNum(m.p_fcfttm) + "x" : "-"}`),
