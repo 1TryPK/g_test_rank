@@ -29,7 +29,6 @@
         <label for="price-input"><strong>Precio:</strong></label>
         <input type="number" id="price-input" step="any" placeholder="Precio" style="width:100px;" />
         <input type="text" id="currency-input" placeholder="Moneda" style="width:70px;" />
-        <button class="outline" id="btn-fetch-price" title="Consultar en Yahoo Finance">↻ Yahoo</button>
       </div>
 
       <div class="toolbar-group">
@@ -161,39 +160,6 @@
         message: `Update index.json for ${currentCompany.ticker}`
       });
       return true;
-    }
-
-    async function fetchYahooQuoteInBrowser(ticker) {
-      const yahooEndpoints = [
-        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`,
-        `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`
-      ];
-
-      for (const targetUrl of yahooEndpoints) {
-        const proxies = [
-          `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
-          `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
-        ];
-
-        for (const pUrl of proxies) {
-          try {
-            const res = await fetch(pUrl);
-            if (!res.ok) continue;
-            const json = await res.json();
-            const meta = json?.chart?.result?.[0]?.meta;
-            const price = meta?.regularMarketPrice ?? meta?.previousClose;
-            if (price && !isNaN(Number(price))) {
-              return {
-                price: Number(price),
-                currency: meta.currency || null
-              };
-            }
-          } catch (_) {
-            // Try next proxy
-          }
-        }
-      }
-      throw new Error("Sin respuesta de Yahoo Finance desde el navegador");
     }
 
     async function init() {
@@ -334,26 +300,6 @@
       currentCompany.currency = e.target.value.trim().toUpperCase();
       renderAll();
       if (await persistCompanyIfConfigured("(moneda)")) showStatus("Moneda guardada en GitHub.");
-    });
-
-    document.getElementById("btn-fetch-price").addEventListener("click", async () => {
-      if (!currentCompany) return;
-      showStatus(`Consultando ${currentCompany.ticker} en Yahoo Finance...`);
-      try {
-        const quote = await fetchYahooQuoteInBrowser(currentCompany.ticker);
-        currentCompany.price = quote.price;
-        if (quote.currency) currentCompany.currency = quote.currency;
-        currentCompany.priceDate = new Date().toISOString().slice(0, 10);
-        document.getElementById("price-input").value = currentCompany.price;
-        document.getElementById("currency-input").value = currentCompany.currency || "";
-        renderAll();
-        const saved = await persistCompanyIfConfigured("(Yahoo Finance)");
-        showStatus(saved
-          ? `Precio (${currentCompany.price} ${currentCompany.currency || ""}) guardado en GitHub.`
-          : `Precio obtenido: ${currentCompany.price} ${currentCompany.currency || ""}.`);
-      } catch (err) {
-        showStatus("Yahoo Finance bloqueó la consulta desde el navegador. Puedes escribir el precio manual o usar la GitHub Action 'Update Prices'.", true);
-      }
     });
 
     document.getElementById("btn-edit-meta").addEventListener("click", () => {
