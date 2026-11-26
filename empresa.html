@@ -258,7 +258,11 @@
       ].join("");
 
       document.getElementById("col3-metrics").innerHTML = [
-        box("F-Score", m.fScore !== null ? `${m.fScore} / 9` : "N/A", `Insiders: ${m.insiders ? fmtNum(m.insiders * 100) + "%" : "0.00%"}`),
+        box(
+          "F-Score FY / LTM",
+          `${m.fScore !== null ? m.fScore + "/9" : "N/A"} / ${m.fScoreLtm !== null ? m.fScoreLtm + "/9" : "N/A"}`,
+          `Insiders: ${m.insiders ? fmtNum(m.insiders * 100) + "%" : "0.00%"}`
+        ),
         box("P / E (TTM)", m.p_ettm !== null ? fmtNum(m.p_ettm) + "x" : "-", `P / FCF (TTM): ${m.p_fcfttm !== null ? fmtNum(m.p_fcfttm) + "x" : "-"}`),
         box("P / E (5A / 10A)", `${m.p_e5 !== null ? fmtNum(m.p_e5) + "x" : "-"} / ${m.p_e10 !== null ? fmtNum(m.p_e10) + "x" : "-"}`, "Promedios anuales"),
         box("P / FCF (5A / 10A)", `${m.p_fcf5 !== null ? fmtNum(m.p_fcf5) + "x" : "-"} / ${m.p_fcf10 !== null ? fmtNum(m.p_fcf10) + "x" : "-"}`, "Promedios anuales")
