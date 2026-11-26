@@ -262,40 +262,40 @@ function calculateMetrics(company, sharePrice) {
   const fcf6 = avgMetric(6, i => getVal("Cash from operating activities", i) + getVal("Capital expenditures", i));
   const fcf10 = avgMetric(10, i => getVal("Cash from operating activities", i) + getVal("Capital expenditures", i));
 
-  let fScore = null;
-  if (fyIndices.length >= 2) {
-    const c = fyIndices[0];
-    const p = fyIndices[1];
-    const p2 = fyIndices.length >= 3 ? fyIndices[2] : p;
+  const computePiotroski = (idxCurr, idxPrev, idxPrev2) => {
+    if (idxCurr === null || idxCurr === undefined || idxPrev === null || idxPrev === undefined) {
+      return null;
+    }
+    const p2Idx = (idxPrev2 !== null && idxPrev2 !== undefined) ? idxPrev2 : idxPrev;
 
-    const niC = getVal("Net income", c);
-    const cfoC = getVal("Cash from operating activities", c);
-    const assetsC = getVal("Total assets", c);
-    const assetsP = getVal("Total assets", p);
-    const assetsP2 = getVal("Total assets", p2);
+    const niC = getVal("Net income", idxCurr);
+    const cfoC = getVal("Cash from operating activities", idxCurr);
+    const assetsC = getVal("Total assets", idxCurr);
+    const assetsP = getVal("Total assets", idxPrev);
+    const assetsP2 = getVal("Total assets", p2Idx);
 
     const avgAssetsC = (assetsC + assetsP) / 2 || assetsC;
     const avgAssetsP = (assetsP + assetsP2) / 2 || assetsP;
 
-    const roaC = avgAssetsC ? (getVal("Operating Income", c) * (1 - 0.625)) / avgAssetsC : 0;
-    const roaP = avgAssetsP ? (getVal("Operating Income", p) * (1 - 0.625)) / avgAssetsP : 0;
+    const roaC = avgAssetsC ? (getVal("Operating Income", idxCurr) * (1 - 0.625)) / avgAssetsC : 0;
+    const roaP = avgAssetsP ? (getVal("Operating Income", idxPrev) * (1 - 0.625)) / avgAssetsP : 0;
 
-    const ltdC = getVal("Long-Term Debt", c);
-    const ltdP = getVal("Long-Term Debt", p);
+    const ltdC = getVal("Long-Term Debt", idxCurr);
+    const ltdP = getVal("Long-Term Debt", idxPrev);
     const ltdRatioC = assetsC ? ltdC / assetsC : 0;
     const ltdRatioP = assetsP ? ltdP / assetsP : 0;
 
-    const crC = getVal("Current Liabilities", c) ? getVal("Current assets", c) / getVal("Current Liabilities", c) : 0;
-    const crP = getVal("Current Liabilities", p) ? getVal("Current assets", p) / getVal("Current Liabilities", p) : 0;
+    const crC = getVal("Current Liabilities", idxCurr) ? getVal("Current assets", idxCurr) / getVal("Current Liabilities", idxCurr) : 0;
+    const crP = getVal("Current Liabilities", idxPrev) ? getVal("Current assets", idxPrev) / getVal("Current Liabilities", idxPrev) : 0;
 
-    const sharesC = getSharesValue(r, c);
-    const sharesP = getSharesValue(r, p);
+    const sharesC = getSharesValue(r, idxCurr);
+    const sharesP = getSharesValue(r, idxPrev);
 
-    const gmC = getVal("Revenue", c) ? getVal("Gross Profit", c) / getVal("Revenue", c) : 0;
-    const gmP = getVal("Revenue", p) ? getVal("Gross Profit", p) / getVal("Revenue", p) : 0;
+    const gmC = getVal("Revenue", idxCurr) ? getVal("Gross Profit", idxCurr) / getVal("Revenue", idxCurr) : 0;
+    const gmP = getVal("Revenue", idxPrev) ? getVal("Gross Profit", idxPrev) / getVal("Revenue", idxPrev) : 0;
 
-    const atC = avgAssetsC ? getVal("Revenue", c) / avgAssetsC : 0;
-    const atP = avgAssetsP ? getVal("Revenue", p) / avgAssetsP : 0;
+    const atC = avgAssetsC ? getVal("Revenue", idxCurr) / avgAssetsC : 0;
+    const atP = avgAssetsP ? getVal("Revenue", idxPrev) / avgAssetsP : 0;
 
     const points = [
       niC > 0,
@@ -308,8 +308,19 @@ function calculateMetrics(company, sharePrice) {
       gmC > gmP,
       atC > atP
     ];
-    fScore = points.reduce((sum, ok) => sum + (ok ? 1 : 0), 0);
-  }
+    return points.reduce((sum, ok) => sum + (ok ? 1 : 0), 0);
+  };
+
+  // F-Score anual (compara último FY vs FY anterior)
+  const fScore = fyIndices.length >= 2
+    ? computePiotroski(fyIndices[0], fyIndices[1], fyIndices[2])
+    : null;
+
+  // F-Score LTM (compara LTM vs último FY, si existe LTM y al menos 1 FY)
+  const hasLtm = periods.length > 0 && periods[0].toUpperCase() === "LTM";
+  const fScoreLtm = (hasLtm && fyIndices.length >= 1)
+    ? computePiotroski(0, fyIndices[0], fyIndices[1])
+    : null;
 
   return {
     sharePrice,
@@ -317,6 +328,7 @@ function calculateMetrics(company, sharePrice) {
     marketCap,
     insiders,
     fScore,
+    fScoreLtm,
     tbv,
     ncav,
     nnwc,
