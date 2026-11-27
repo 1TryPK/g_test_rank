@@ -1,13 +1,5 @@
 const CANONICAL_ROWS = [
   "Date",
-  "name": "Name",
-  "company name": "Name",
-  "currency": "Currency",
-  "website": "Website",
-  "sitio web": "Website",
-  "description": "Description",
-  "descripcion": "Description",
-  "descripción": "Description",
   "Cash & ST Investments",
   "Current assets",
   "Receivables",
