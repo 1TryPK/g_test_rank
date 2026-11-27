@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Resumen de Empresas - Fundamental Screener</title>
+  <title>Dashboard de Empresas - Fundamental Screener</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <header>
     <div>
-      <h1>Resumen de Empresas</h1>
-      <span style="font-size:12px; color:#cbd5e1;">Listado de empresas cargadas en el repositorio</span>
+      <h1>Dashboard de Valoración Fundamental</h1>
+      <span id="dash-subtitle" style="font-size:12px; color:#cbd5e1;">Resumen dinámico calculado desde las fichas de empresa</span>
     </div>
-    <div>
+    <div style="display:flex; gap:10px; align-items:center;">
       <button type="button" id="btn-top-upload">↑ Cargar / Actualizar datos (CSV)</button>
       <input type="file" id="home-csv-upload" accept=".csv,.txt" multiple style="display:none;" />
     </div>
@@ -37,16 +37,44 @@
 
     <div class="card">
       <h2>
-        <span>Empresas cargadas</span>
-        <button type="button" class="outline" id="h-btn-open-gh" style="padding:5px 10px; font-size:12px;">⚙ GitHub</button>
+        <span>Tabla Resumen de Empresas (<span id="visible-count">0</span>)</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button type="button" class="outline" id="btn-reset-filters" style="padding:5px 10px; font-size:12px;">Limpiar filtros</button>
+          <button type="button" class="outline" id="h-btn-open-gh" style="padding:5px 10px; font-size:12px;">⚙ GitHub</button>
+        </div>
       </h2>
+
+      <!-- Barra de filtros -->
+      <div class="filters-bar">
+        <div class="filter-item">
+          <label for="f-search">Buscar (Ticker / Nombre)</label>
+          <input type="text" id="f-search" placeholder="Ej. 7442.T o Nakayamafuku" />
+        </div>
+        <div class="filter-item">
+          <label for="f-max-pncav">P/NCAV máx.</label>
+          <input type="number" id="f-max-pncav" step="any" placeholder="Ej. 1.0" />
+        </div>
+        <div class="filter-item">
+          <label for="f-max-ptbv">P/TBV máx.</label>
+          <input type="number" id="f-max-ptbv" step="any" placeholder="Ej. 1.0" />
+        </div>
+        <div class="filter-item">
+          <label for="f-min-fscore-fy">F-Score FY mín.</label>
+          <input type="number" id="f-min-fscore-fy" min="0" max="9" step="1" placeholder="0 - 9" />
+        </div>
+        <div class="filter-item">
+          <label for="f-min-fscore-ltm">F-Score LTM mín.</label>
+          <input type="number" id="f-min-fscore-ltm" min="0" max="9" step="1" placeholder="0 - 9" />
+        </div>
+        <div class="filter-item">
+          <label for="f-min-mcap">Market Cap mín. (mm)</label>
+          <input type="number" id="f-min-mcap" step="any" placeholder="Ej. 10" />
+        </div>
+      </div>
+
       <div class="table-wrapper">
-        <table id="companies-list-table">
-          <thead>
-            <tr>
-              <th style="text-align:left;">Ticker / Empresa</th>
-            </tr>
-          </thead>
+        <table id="dashboard-table">
+          <thead></thead>
           <tbody>
             <tr><td style="text-align:left;">Cargando empresas...</td></tr>
           </tbody>
@@ -58,6 +86,37 @@
   <script src="js/finance-engine.js"></script>
   <script>
     let registry = [];
+    let rowsData = [];
+    let sortState = { key: "ticker", dir: "asc" };
+
+    const COLUMNS = [
+      { key: "name", label: "Nombre", type: "string", sticky: true },
+      { key: "ticker", label: "Ticker", type: "string" },
+      { key: "shares", label: "Shares Outstanding", type: "number", decimals: 0 },
+      { key: "sharePrice", label: "Share Price", type: "number", decimals: 2 },
+      { key: "marketCap", label: "Market Cap", type: "number", decimals: 2 },
+      { key: "currency", label: "Moneda", type: "string" },
+      { key: "retainedEarnings", label: "Retained Earnings", type: "number", decimals: 2 },
+      { key: "fScore", label: "F-Score FY", type: "number", decimals: 0 },
+      { key: "fScoreLtm", label: "F-Score LTM", type: "number", decimals: 0 },
+      { key: "p_tbv", label: "P/TBV", type: "number", decimals: 2, suffix: "x" },
+      { key: "p_ncav", label: "P/NCAV", type: "number", decimals: 2, suffix: "x" },
+      { key: "p_nnwc", label: "P/NNWC", type: "number", decimals: 2, suffix: "x" },
+      { key: "p_netcash", label: "P/NetCash", type: "number", decimals: 2, suffix: "x" },
+      { key: "p_ettm", label: "P/E (TTM)", type: "number", decimals: 2, suffix: "x" },
+      { key: "p_fcfttm", label: "P/FCF (TTM)", type: "number", decimals: 2, suffix: "x" },
+      { key: "tbv", label: "TBV", type: "number", decimals: 2 },
+      { key: "ncav", label: "NCAV", type: "number", decimals: 2 },
+      { key: "nnwc", label: "NNWC", type: "number", decimals: 2 },
+      { key: "netCash", label: "Net Cash", type: "number", decimals: 2 },
+      { key: "p_e5", label: "P/E (5A)", type: "number", decimals: 2, suffix: "x" },
+      { key: "p_fcf5", label: "P/FCF (5A)", type: "number", decimals: 2, suffix: "x" },
+      { key: "p_e6", label: "P/E (6A)", type: "number", decimals: 2, suffix: "x" },
+      { key: "p_fcf6", label: "P/FCF (6A)", type: "number", decimals: 2, suffix: "x" },
+      { key: "p_e10", label: "P/E (10A)", type: "number", decimals: 2, suffix: "x" },
+      { key: "p_fcf10", label: "P/FCF (10A)", type: "number", decimals: 2, suffix: "x" },
+      { key: "insidersPct", label: "Insiders %", type: "number", decimals: 2, suffix: "%" }
+    ];
 
     function showHomeStatus(msg, isError = false) {
       const el = document.getElementById("home-status");
@@ -87,35 +146,202 @@
       });
     }
 
-    function renderList() {
-      const tbody = document.querySelector("#companies-list-table tbody");
-      if (!tbody) return;
-      if (!Array.isArray(registry) || registry.length === 0) {
-        tbody.innerHTML = `<tr><td style="text-align:left;">No hay empresas cargadas aún. Usa "Cargar / Actualizar datos (CSV)".</td></tr>`;
+    function fmtCell(val, col) {
+      if (val === null || val === undefined || val === "") return "-";
+      if (col.type === "string") return String(val);
+      const num = Number(val);
+      if (isNaN(num)) return "-";
+      const formatted = num.toLocaleString("en-US", {
+        minimumFractionDigits: col.decimals || 0,
+        maximumFractionDigits: col.decimals || 0
+      });
+      return col.suffix ? `${formatted}${col.suffix}` : formatted;
+    }
+
+    function buildCompanySummary(company) {
+      const priceVal = (company.price !== null && company.price !== undefined && company.price !== "")
+        ? Number(company.price)
+        : null;
+      const m = calculateMetrics(company, priceVal);
+      return {
+        ticker: company.ticker,
+        name: company.name || company.ticker,
+        currency: company.currency || "-",
+        shares: m.shares ?? 0,
+        sharePrice: priceVal,
+        marketCap: m.marketCap,
+        retainedEarnings: m.retainedEarnings,
+        fScore: m.fScore,
+        fScoreLtm: m.fScoreLtm,
+        p_tbv: m.p_tbv,
+        p_ncav: m.p_ncav,
+        p_nnwc: m.p_nnwc,
+        p_netcash: m.p_netcash,
+        p_ettm: m.p_ettm,
+        p_fcfttm: m.p_fcfttm,
+        tbv: m.tbv,
+        ncav: m.ncav,
+        nnwc: m.nnwc,
+        netCash: m.netCash,
+        p_e5: m.p_e5,
+        p_fcf5: m.p_fcf5,
+        p_e6: m.p_e6,
+        p_fcf6: m.p_fcf6,
+        p_e10: m.p_e10,
+        p_fcf10: m.p_fcf10,
+        insidersPct: m.insiders !== undefined && m.insiders !== null ? Number(m.insiders) * 100 : 0
+      };
+    }
+
+    async function loadDashboardData() {
+      try {
+        const res = await fetch("data/index.json?t=" + Date.now());
+        if (!res.ok) throw new Error(`No se pudo cargar data/index.json (HTTP ${res.status})`);
+        const data = await res.json();
+        registry = Array.isArray(data.companies) ? data.companies : [];
+
+        const loaded = await Promise.all(
+          registry.map(async (item) => {
+            const path = item.file || `data/companies/${item.ticker}.json`;
+            try {
+              const cRes = await fetch(`${path}?t=${Date.now()}`);
+              if (!cRes.ok) return buildCompanySummary({ ticker: item.ticker, name: item.name, periods: [], rows: {} });
+              const companyJson = await cRes.json();
+              if (!companyJson.name && item.name) companyJson.name = item.name;
+              return buildCompanySummary(companyJson);
+            } catch (_) {
+              return buildCompanySummary({ ticker: item.ticker, name: item.name, periods: [], rows: {} });
+            }
+          })
+        );
+
+        rowsData = loaded;
+        renderTable();
+      } catch (err) {
+        rowsData = [];
+        renderTable();
+        showHomeStatus(`Aviso al cargar datos: ${err.message}`, true);
+      }
+    }
+
+    function getFilteredAndSortedRows() {
+      const q = (document.getElementById("f-search").value || "").trim().toLowerCase();
+      const maxPncav = parseFloat(document.getElementById("f-max-pncav").value);
+      const maxPtbv = parseFloat(document.getElementById("f-max-ptbv").value);
+      const minFscoreFy = parseFloat(document.getElementById("f-min-fscore-fy").value);
+      const minFscoreLtm = parseFloat(document.getElementById("f-min-fscore-ltm").value);
+      const minMcap = parseFloat(document.getElementById("f-min-mcap").value);
+
+      const filtered = rowsData.filter(r => {
+        if (q) {
+          const matchTicker = String(r.ticker || "").toLowerCase().includes(q);
+          const matchName = String(r.name || "").toLowerCase().includes(q);
+          if (!matchTicker && !matchName) return false;
+        }
+        if (!isNaN(maxPncav)) {
+          if (r.p_ncav === null || r.p_ncav === undefined || Number(r.p_ncav) > maxPncav) return false;
+        }
+        if (!isNaN(maxPtbv)) {
+          if (r.p_tbv === null || r.p_tbv === undefined || Number(r.p_tbv) > maxPtbv) return false;
+        }
+        if (!isNaN(minFscoreFy)) {
+          if (r.fScore === null || r.fScore === undefined || Number(r.fScore) < minFscoreFy) return false;
+        }
+        if (!isNaN(minFscoreLtm)) {
+          if (r.fScoreLtm === null || r.fScoreLtm === undefined || Number(r.fScoreLtm) < minFscoreLtm) return false;
+        }
+        if (!isNaN(minMcap)) {
+          if (r.marketCap === null || r.marketCap === undefined || Number(r.marketCap) < minMcap) return false;
+        }
+        return true;
+      });
+
+      const col = COLUMNS.find(c => c.key === sortState.key) || COLUMNS[1];
+      const mult = sortState.dir === "asc" ? 1 : -1;
+
+      filtered.sort((a, b) => {
+        const va = a[col.key];
+        const vb = b[col.key];
+        const emptyA = va === null || va === undefined || va === "" || (col.type === "number" && isNaN(Number(va)));
+        const emptyB = vb === null || vb === undefined || vb === "" || (col.type === "number" && isNaN(Number(vb)));
+        if (emptyA && emptyB) return 0;
+        if (emptyA) return 1;
+        if (emptyB) return -1;
+
+        if (col.type === "string") {
+          return String(va).localeCompare(String(vb)) * mult;
+        }
+        return (Number(va) - Number(vb)) * mult;
+      });
+
+      return filtered;
+    }
+
+    function renderHeader() {
+      const thead = document.querySelector("#dashboard-table thead");
+      thead.innerHTML = `<tr>${COLUMNS.map(col => {
+        const isSorted = sortState.key === col.key;
+        const arrow = isSorted ? (sortState.dir === "asc" ? "▲" : "▼") : "⇅";
+        const alignStyle = col.type === "string" ? "text-align:left;" : "text-align:right;";
+        return `<th class="sortable" data-key="${col.key}" style="${alignStyle}">${col.label}<span class="sort-arrow">${arrow}</span></th>`;
+      }).join("")}</tr>`;
+
+      thead.querySelectorAll("th.sortable").forEach(th => {
+        th.addEventListener("click", () => {
+          const key = th.getAttribute("data-key");
+          if (sortState.key === key) {
+            sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+          } else {
+            sortState.key = key;
+            const c = COLUMNS.find(x => x.key === key);
+            sortState.dir = c && c.type === "number" ? "desc" : "asc";
+          }
+          renderTable();
+        });
+      });
+    }
+
+    function renderTable() {
+      renderHeader();
+      const list = getFilteredAndSortedRows();
+      document.getElementById("visible-count").textContent = String(list.length);
+      const tbody = document.querySelector("#dashboard-table tbody");
+
+      if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="${COLUMNS.length}" style="text-align:left;">No hay empresas que coincidan con los filtros o no hay datos cargados.</td></tr>`;
         return;
       }
-      tbody.innerHTML = registry.map(item => {
-        const label = item.name && item.name !== item.ticker ? `${item.ticker} — ${item.name}` : item.ticker;
-        return `<tr><td style="text-align:left;"><a href="empresa.html?ticker=${encodeURIComponent(item.ticker)}" style="color:var(--accent); font-weight:600; text-decoration:none;">${label}</a></td></tr>`;
+
+      tbody.innerHTML = list.map(r => {
+        const href = `empresa.html?ticker=${encodeURIComponent(r.ticker)}`;
+        return `<tr>${COLUMNS.map(col => {
+          const val = r[col.key];
+          const text = fmtCell(val, col);
+          const isNeg = col.type === "number" && val !== null && val !== undefined && Number(val) < 0;
+          const alignStyle = col.type === "string" ? "text-align:left;" : "text-align:right;";
+          const cls = isNeg ? 'class="neg"' : "";
+
+          if (col.key === "name" || col.key === "ticker") {
+            return `<td style="${alignStyle}"><a class="company-link" href="${href}">${text}</a></td>`;
+          }
+          return `<td ${cls} style="${alignStyle}">${text}</td>`;
+        }).join("")}</tr>`;
       }).join("");
     }
 
-    async function loadRegistry() {
-      try {
-        const res = await fetch("data/index.json?t=" + Date.now());
-        if (!res.ok) {
-          throw new Error(`No se pudo cargar data/index.json (HTTP ${res.status})`);
-        }
-        const data = await res.json();
-        registry = Array.isArray(data.companies) ? data.companies : [];
-        renderList();
-      } catch (err) {
-        registry = [];
-        renderList();
-        showHomeStatus(`Aviso al leer data/index.json: ${err.message}`, true);
-      }
-    }
+    // Filtros
+    ["f-search", "f-max-pncav", "f-max-ptbv", "f-min-fscore-fy", "f-min-fscore-ltm", "f-min-mcap"].forEach(id => {
+      document.getElementById(id).addEventListener("input", renderTable);
+    });
 
+    document.getElementById("btn-reset-filters").addEventListener("click", () => {
+      ["f-search", "f-max-pncav", "f-max-ptbv", "f-min-fscore-fy", "f-min-fscore-ltm", "f-min-mcap"].forEach(id => {
+        document.getElementById(id).value = "";
+      });
+      renderTable();
+    });
+
+    // Carga múltiple de CSV
     document.getElementById("btn-top-upload").addEventListener("click", () => {
       document.getElementById("home-csv-upload").click();
     });
@@ -156,6 +382,11 @@
           if (idx >= 0) registry[idx] = entryObj;
           else registry.push(entryObj);
 
+          const summaryObj = buildCompanySummary(merged);
+          const rIdx = rowsData.findIndex(x => x.ticker === merged.ticker);
+          if (rIdx >= 0) rowsData[rIdx] = summaryObj;
+          else rowsData.push(summaryObj);
+
           if (canSaveGh) {
             await saveFileToGitHub({
               owner: gh.owner,
@@ -173,7 +404,7 @@
         }
       }
 
-      renderList();
+      renderTable();
 
       if (canSaveGh && processedTickers.length > 0) {
         showHomeStatus(`Actualizando índice general (data/index.json) para ${processedTickers.length} empresa(s)...`);
@@ -203,6 +434,7 @@
       e.target.value = "";
     });
 
+    // Configuración GitHub
     document.getElementById("h-btn-open-gh").addEventListener("click", () => {
       const cfg = getGhCfg();
       document.getElementById("h-gh-owner").value = cfg.owner;
@@ -224,7 +456,7 @@
       showHomeStatus("Configuración de GitHub guardada.");
     });
 
-    loadRegistry();
+    loadDashboardData();
   </script>
 </body>
 </html>
