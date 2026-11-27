@@ -13,7 +13,7 @@
       <span style="font-size:12px; color:#cbd5e1;">Listado de empresas cargadas en el repositorio</span>
     </div>
     <div>
-      <button id="btn-top-upload">↑ Cargar / Actualizar datos (CSV)</button>
+      <button type="button" id="btn-top-upload">↑ Cargar / Actualizar datos (CSV)</button>
       <input type="file" id="home-csv-upload" accept=".csv,.txt" multiple style="display:none;" />
     </div>
   </header>
@@ -30,15 +30,15 @@
         <input type="password" id="h-gh-token" placeholder="GitHub Token" />
       </div>
       <div style="margin-top:10px; display:flex; gap:8px;">
-        <button id="h-btn-save-gh">Guardar config</button>
-        <button class="outline" id="h-btn-toggle-gh">Ocultar</button>
+        <button type="button" id="h-btn-save-gh">Guardar config</button>
+        <button type="button" class="outline" id="h-btn-toggle-gh">Ocultar</button>
       </div>
     </div>
 
     <div class="card">
       <h2>
         <span>Empresas cargadas</span>
-        <button class="outline" id="h-btn-open-gh" style="padding:5px 10px; font-size:12px;">⚙ GitHub</button>
+        <button type="button" class="outline" id="h-btn-open-gh" style="padding:5px 10px; font-size:12px;">⚙ GitHub</button>
       </h2>
       <div class="table-wrapper">
         <table id="companies-list-table">
@@ -48,7 +48,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr><td>Cargando empresas...</td></tr>
+            <tr><td style="text-align:left;">Cargando empresas...</td></tr>
           </tbody>
         </table>
       </div>
@@ -61,6 +61,7 @@
 
     function showHomeStatus(msg, isError = false) {
       const el = document.getElementById("home-status");
+      if (!el) return;
       el.style.display = "block";
       el.style.background = isError ? "#fef2f2" : "#f0fdf4";
       el.style.color = isError ? "#991b1b" : "#166534";
@@ -86,26 +87,51 @@
       });
     }
 
-    async function loadRegistry() {
-      try {
-        const res = await fetch("data/index.json?t=" + Date.now());
-        const data = await res.json();
-        registry = data.companies || [];
-      } catch (e) {
-        registry = [];
-      }
-      renderList();
-    }
-
     function renderList() {
       const tbody = document.querySelector("#companies-list-table tbody");
-      if (!registry.length) {
+      if (!tbody) return;
+      if (!Array.isArray(registry) || registry.length === 0) {
         tbody.innerHTML = `<tr><td style="text-align:left;">No hay empresas cargadas aún. Usa "Cargar / Actualizar datos (CSV)".</td></tr>`;
         return;
       }
       tbody.innerHTML = registry.map(item => {
-        const label = item.name && item.name !== item.ticker ? `${item.ticker} —${item.name}` : item.ticker;
-        return `<tr><td style="text-align:left;"><a href="empresa.html?ticker=${encodeURIComponent(item.ticker)}" style="color:var(--accent); font-weight:600; text-decoration:none;">${label}</a></td></tr>`; }).join(""); }  document.getElementById("btn-top-upload").addEventListener("click", () => { document.getElementById("home-csv-upload").click(); });  document.getElementById("home-csv-upload").addEventListener("change", async (e) => { const files = Array.from(e.target.files \vert{}\vert{} []); if (!files.length) return;  const gh = getGhCfg(); const canSaveGh = Boolean(gh.owner && gh.repo && gh.token); const processedTickers = []; const errors = [];  for (let i = 0; i < files.length; i++) { const file = files[i]; showHomeStatus(`Procesando (${i + 1}/${files.length}):${file.name}...`);
+        const label = item.name && item.name !== item.ticker ? `${item.ticker} — ${item.name}` : item.ticker;
+        return `<tr><td style="text-align:left;"><a href="empresa.html?ticker=${encodeURIComponent(item.ticker)}" style="color:var(--accent); font-weight:600; text-decoration:none;">${label}</a></td></tr>`;
+      }).join("");
+    }
+
+    async function loadRegistry() {
+      try {
+        const res = await fetch("data/index.json?t=" + Date.now());
+        if (!res.ok) {
+          throw new Error(`No se pudo cargar data/index.json (HTTP ${res.status})`);
+        }
+        const data = await res.json();
+        registry = Array.isArray(data.companies) ? data.companies : [];
+        renderList();
+      } catch (err) {
+        registry = [];
+        renderList();
+        showHomeStatus(`Aviso al leer data/index.json: ${err.message}`, true);
+      }
+    }
+
+    document.getElementById("btn-top-upload").addEventListener("click", () => {
+      document.getElementById("home-csv-upload").click();
+    });
+
+    document.getElementById("home-csv-upload").addEventListener("change", async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+
+      const gh = getGhCfg();
+      const canSaveGh = Boolean(gh.owner && gh.repo && gh.token);
+      const processedTickers = [];
+      const errors = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        showHomeStatus(`Procesando (${i + 1}/${files.length}): ${file.name}...`);
         try {
           const text = await readFileAsText(file);
           const incoming = parseCompanyCSV(text);
@@ -113,8 +139,10 @@
           let existingCompany = null;
           const existingEntry = registry.find(r => r.ticker === incoming.ticker);
           if (existingEntry && existingEntry.file) {
-            const r = await fetch(`${existingEntry.file}?t=${Date.now()}`);
-            if (r.ok) existingCompany = await r.json();
+            try {
+              const r = await fetch(`${existingEntry.file}?t=${Date.now()}`);
+              if (r.ok) existingCompany = await r.json();
+            } catch (_) {}
           }
 
           const merged = mergeCompanyData(existingCompany, incoming);
@@ -122,14 +150,26 @@
           const entryObj = {
             ticker: merged.ticker,
             name: merged.name || merged.ticker,
-            file: `data/companies/${merged.ticker}.json`, lastUpdated: merged.lastUpdated }; if (idx >= 0) registry[idx] = entryObj; else registry.push(entryObj);  if (canSaveGh) { await saveFileToGitHub({ owner: gh.owner, repo: gh.repo, branch: gh.branch, token: gh.token, path: `data/companies/${merged.ticker}.json`,
+            file: `data/companies/${merged.ticker}.json`,
+            lastUpdated: merged.lastUpdated
+          };
+          if (idx >= 0) registry[idx] = entryObj;
+          else registry.push(entryObj);
+
+          if (canSaveGh) {
+            await saveFileToGitHub({
+              owner: gh.owner,
+              repo: gh.repo,
+              branch: gh.branch,
+              token: gh.token,
+              path: `data/companies/${merged.ticker}.json`,
               contentText: JSON.stringify(merged, null, 2),
               message: `Update financials for ${merged.ticker} (${merged.lastUpdated})`
             });
           }
           processedTickers.push(merged.ticker);
         } catch (err) {
-          errors.push(`${file.name}:${err.message}`);
+          errors.push(`${file.name}: ${err.message}`);
         }
       }
 
@@ -145,12 +185,15 @@
             token: gh.token,
             path: "data/index.json",
             contentText: JSON.stringify({ companies: registry }, null, 2),
-            message: `Batch update index.json (${processedTickers.join(", ")})` }); } catch (err) { errors.push(`index.json: ${err.message}`);
+            message: `Batch update index.json (${processedTickers.join(", ")})`
+          });
+        } catch (err) {
+          errors.push(`index.json: ${err.message}`);
         }
       }
 
       if (errors.length > 0) {
-        showHomeStatus(`Procesadas: ${processedTickers.join(", ") \vert{}\vert{} "ninguna"}. Errores: ${errors.join(" | ")}`, true);
+        showHomeStatus(`Procesadas: ${processedTickers.join(", ") || "ninguna"}. Errores: ${errors.join(" | ")}`, true);
       } else if (canSaveGh) {
         showHomeStatus(`Listo: ${processedTickers.length} empresa(s) guardada(s) en GitHub (${processedTickers.join(", ")}).`);
       } else {
