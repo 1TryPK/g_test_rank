@@ -1,12 +1,12 @@
 {
   "ticker": "7877.T",
-  "name": "7877.T",
+  "name": "empresa 9",
   "currency": "USD",
   "unitMultiplier": 1000000,
-  "price": 2169.0,
+  "price": 2169,
   "priceDate": "2026-11-27",
   "website": "",
-  "description": "",
+  "description": "datos de la 9",
   "lastUpdated": "2026-11-27",
   "periods": [
     "LTM",
