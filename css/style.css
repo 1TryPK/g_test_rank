@@ -216,3 +216,46 @@ tr.row-highlight td:first-child { background: #f1f5f9; }
   gap: 10px;
   margin-top: 10px;
 }
+
+.filters-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.filter-item label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+th.sortable:hover {
+  background: #e2e8f0;
+  color: var(--text);
+}
+.sort-arrow {
+  font-size: 10px;
+  margin-left: 4px;
+  color: var(--accent);
+}
+a.company-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+a.company-link:hover {
+  text-decoration: underline;
+}
