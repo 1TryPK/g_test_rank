@@ -217,7 +217,9 @@ function calculateMetrics(company, sharePrice) {
   const assetsNoInt = getVal("Total assets (Without Intangibles)", 0);
   const totLiab = getVal("Total liabilities", 0);
   const prefEq = getVal("Total Pref Equity", 0);
+  const retainedEarnings = getVal("Retained earnings", 0);
   const minInt = Math.max(0, getVal("Total Minority Interest", 0));
+  
 
   // Shares outstanding de la columna más reciente (col 0)
   const shares = getSharesValue(r, 0);
@@ -333,6 +335,7 @@ function calculateMetrics(company, sharePrice) {
     ncav,
     nnwc,
     netCash,
+    retainedEarnings,
     p_tbv: safeDiv(marketCap, tbv),
     p_ncav: safeDiv(marketCap, ncav),
     p_nnwc: safeDiv(marketCap, nnwc),
