@@ -43,6 +43,14 @@ function normalizeLabel(raw) {
   const clean = raw.trim().toLowerCase();
   const map = {
     "date": "Date",
+    "name": "Name",
+    "company name": "Name",
+    "currency": "Currency",
+    "website": "Website",
+    "sitio web": "Website",
+    "description": "Description",
+    "descripcion": "Description",
+    "descripción": "Description",
     "cash & st investments": "Cash & ST Investments",
     "current assets": "Current assets",
     "receivables": "Receivables",
@@ -124,6 +132,10 @@ function parseCompanyCSV(csvText) {
   const rows = {};
   let name = null;
   let currency = null;
+  let website = null;
+  let description = null;
+
+  const firstNonEmpty = (arr) => arr.map(v => String(v || "").trim()).find(v => v !== "") || null;
 
   for (let r = 1; r < matrix.length; r++) {
     const rawLabel = matrix[r][0];
@@ -131,21 +143,30 @@ function parseCompanyCSV(csvText) {
     const label = normalizeLabel(rawLabel);
 
     if (label === "Name") {
-      const foundName = matrix[r].slice(1).map(v => String(v || "").trim()).find(v => v !== "");
-      if (foundName) name = foundName;
+      const found = firstNonEmpty(matrix[r].slice(1));
+      if (found) name = found;
       continue;
     }
-
     if (label === "Currency") {
-      const foundCurr = matrix[r].slice(1).map(v => String(v || "").trim()).find(v => v !== "");
-      if (foundCurr) currency = foundCurr.toUpperCase();
+      const found = firstNonEmpty(matrix[r].slice(1));
+      if (found) currency = found.toUpperCase();
+      continue;
+    }
+    if (label === "Website") {
+      const found = firstNonEmpty(matrix[r].slice(1));
+      if (found) website = found;
+      continue;
+    }
+    if (label === "Description") {
+      const found = firstNonEmpty(matrix[r].slice(1));
+      if (found) description = found;
       continue;
     }
 
     rows[label] = periods.map((_, idx) => parseCellValue(label, matrix[r][idx + 1]));
   }
 
-  return { ticker, name, currency, periods, rows };
+  return { ticker, name, currency, website, description, periods, rows };
 }
 
 function sortPeriods(periodList) {
@@ -172,8 +193,8 @@ function mergeCompanyData(existingCompany, incoming) {
     unitMultiplier: 1000000,
     price: null,
     priceDate: null,
-    website: "",
-    description: "",
+    website: incoming.website || "",
+    description: incoming.description || "",
     lastUpdated: today,
     periods: [],
     rows: {}
@@ -181,6 +202,8 @@ function mergeCompanyData(existingCompany, incoming) {
 
   if (incoming.name) base.name = incoming.name;
   if (incoming.currency) base.currency = incoming.currency.toUpperCase();
+  if (incoming.website) base.website = incoming.website;
+  if (incoming.description) base.description = incoming.description;
 
   const periodMap = {};
   base.periods.forEach((p, idx) => {
