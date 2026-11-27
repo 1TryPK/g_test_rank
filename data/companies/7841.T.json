@@ -1,12 +1,12 @@
 {
   "ticker": "7841.T",
-  "name": "7841.T",
+  "name": "empresa 10",
   "currency": "USD",
   "unitMultiplier": 1000000,
-  "price": 1001.0,
+  "price": 1001,
   "priceDate": "2026-11-27",
   "website": "",
-  "description": "",
+  "description": "datos de la 10",
   "lastUpdated": "2026-11-27",
   "periods": [
     "LTM",
