@@ -1,5 +1,13 @@
 const CANONICAL_ROWS = [
   "Date",
+  "name": "Name",
+  "company name": "Name",
+  "currency": "Currency",
+  "website": "Website",
+  "sitio web": "Website",
+  "description": "Description",
+  "descripcion": "Description",
+  "descripción": "Description",
   "Cash & ST Investments",
   "Current assets",
   "Receivables",
@@ -114,15 +122,30 @@ function parseCompanyCSV(csvText) {
 
   const periods = matrix[0].slice(1).map(p => p.trim()).filter(p => p !== "");
   const rows = {};
+  let name = null;
+  let currency = null;
 
   for (let r = 1; r < matrix.length; r++) {
     const rawLabel = matrix[r][0];
     if (!rawLabel) continue;
     const label = normalizeLabel(rawLabel);
+
+    if (label === "Name") {
+      const foundName = matrix[r].slice(1).map(v => String(v || "").trim()).find(v => v !== "");
+      if (foundName) name = foundName;
+      continue;
+    }
+
+    if (label === "Currency") {
+      const foundCurr = matrix[r].slice(1).map(v => String(v || "").trim()).find(v => v !== "");
+      if (foundCurr) currency = foundCurr.toUpperCase();
+      continue;
+    }
+
     rows[label] = periods.map((_, idx) => parseCellValue(label, matrix[r][idx + 1]));
   }
 
-  return { ticker, periods, rows };
+  return { ticker, name, currency, periods, rows };
 }
 
 function sortPeriods(periodList) {
@@ -144,8 +167,8 @@ function mergeCompanyData(existingCompany, incoming) {
   const today = new Date().toISOString().slice(0, 10);
   const base = existingCompany ? JSON.parse(JSON.stringify(existingCompany)) : {
     ticker: incoming.ticker,
-    name: incoming.ticker,
-    currency: "USD",
+    name: incoming.name || incoming.ticker,
+    currency: incoming.currency || "USD",
     unitMultiplier: 1000000,
     price: null,
     priceDate: null,
@@ -155,6 +178,9 @@ function mergeCompanyData(existingCompany, incoming) {
     periods: [],
     rows: {}
   };
+
+  if (incoming.name) base.name = incoming.name;
+  if (incoming.currency) base.currency = incoming.currency.toUpperCase();
 
   const periodMap = {};
   base.periods.forEach((p, idx) => {
