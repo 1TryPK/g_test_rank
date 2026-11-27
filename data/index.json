@@ -14,13 +14,13 @@
     },
     {
       "ticker": "7877.T",
-      "name": "7877.T",
+      "name": "empresa 9",
       "file": "data/companies/7877.T.json",
       "lastUpdated": "2026-11-27"
     },
     {
       "ticker": "7841.T",
-      "name": "7841.T",
+      "name": "empresa 10",
       "file": "data/companies/7841.T.json",
       "lastUpdated": "2026-11-27"
     }
