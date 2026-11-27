@@ -336,6 +336,7 @@ function calculateMetrics(company, sharePrice) {
     nnwc,
     netCash,
     retainedEarnings,
+    fcfTTM,
     p_tbv: safeDiv(marketCap, tbv),
     p_ncav: safeDiv(marketCap, ncav),
     p_nnwc: safeDiv(marketCap, nnwc),
